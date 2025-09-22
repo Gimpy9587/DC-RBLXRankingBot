@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WCV2 Ranker - Roblox Group Management</title>
@@ -88,15 +88,18 @@
             <button onclick="testGroupAccess()" class="auth-button">Test Group Access</button>
         </div>
     </div>
-        <script>
-        // Replace with your actual OAuth client ID from Roblox
-        const CLIENT_ID = '2941701111614353736'; // Your client ID
-        const REDIRECT_URI = 'https://gimpy9587.github.io/DC-RBLXRankingBot';
+    <script>
+        // Replace with your actual OAuth client ID from Roblox (must match bot's CONFIG)
+        const CLIENT_ID = 'YOUR_OAUTH_CLIENT_ID'; // Update this to match bot's client_id
+        const REDIRECT_URI = 'https://gimpy9587.github.io/DC-RBLXRankingBot'; // Must match bot's redirect_uri
        
         function authorizeAdmin() {
             const scopes = 'openid profile group:read group:write';
-            // Use fixed state to match bot
-            const state = 'discord_bot_auth';
+            // Generate random state (for independent use; when using bot URL, state comes from bot)
+            const state = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+           
+            // Store state for verification (only if using this button)
+            localStorage.setItem('oauth_state', state);
            
             const authUrl = `https://apis.roblox.com/oauth/v1/authorize?` +
                 `client_id=${CLIENT_ID}&` +
@@ -105,6 +108,7 @@
                 `response_type=code&` +
                 `state=${state}`;
            
+            console.log('Generated state:', state);
             console.log('Redirecting to:', authUrl);
             window.location.href = authUrl;
         }
@@ -112,6 +116,7 @@
         function handleCallback() {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+            const state = urlParams.get('state');
             const error = urlParams.get('error');
            
             const statusDiv = document.getElementById('status');
@@ -121,21 +126,34 @@
                 return;
             }
            
-            if (code) {
-                statusDiv.innerHTML = `
-                    <div class="status success">
-                        Authorization successful! Please copy the following command and run it in Discord (paste only the code after !oauth_complete):
-                        <div class="code-block">!oauth_complete ${code}</div>
-                    </div>`;
+            if (code && state) {
+                // Optional state verification (skip if no saved state, e.g., from bot URL)
+                const savedState = localStorage.getItem('oauth_state');
+                console.log('Received state:', state, 'Saved state:', savedState);
+                let stateValid = true;
+                if (savedState && state !== savedState) {
+                    stateValid = false;
+                    statusDiv.innerHTML = '<div class="status error">State mismatch - possible security issue. If using bot URL, this may be expected.</div>';
+                    console.error('State mismatch: expected', savedState, 'got', state);
+                }
                
-                // Show admin panel (optional, for testing)
-                document.getElementById('adminPanel').style.display = 'block';
-                document.getElementById('authButton').style.display = 'none';
+                if (stateValid) {
+                    statusDiv.innerHTML = `
+                        <div class="status success">
+                            Authorization successful! Please copy the following command and run it in Discord:
+                            <div class="code-block">!oauth_complete ${code} ${state}</div>
+                            <p><strong>Note:</strong> If using the bot's !oauth_setup URL, this state should match the bot's pending_state.</p>
+                        </div>`;
+                   
+                    // Show admin panel (optional, for testing)
+                    document.getElementById('adminPanel').style.display = 'block';
+                    document.getElementById('authButton').style.display = 'none';
+                }
                
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             } else {
-                statusDiv.innerHTML = '<div class="status error">No code received. Try authorizing again.</div>';
+                statusDiv.innerHTML = '<div class="status error">No code or state received. Try authorizing again.</div>';
             }
         }
        
